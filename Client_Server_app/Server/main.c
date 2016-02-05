@@ -17,6 +17,11 @@
 #define MAXBUF 1000
 #define MAXDATA 10000
 
+volatile int Work = 1;
+int sockfd;
+void *ptr;
+
+
 /*
     Create an SHA256_CTX object.
     Initialize it with sha256_init().
@@ -176,34 +181,44 @@ void sha256_final(SHA256_CTX *ctx, uchar hash[])
       hash[i+28] = (ctx->state[7] >> (24-i*8)) & 0x000000ff;
    }  
 }  
-/*
-void convert (void *first,void *second,unsigned int size)
-{
-    unsigned char *f_ptr = first;
-    unsigned char *s_ptr = second;
-    for(int i=0;i<size;++i)
-    {
-        s_ptr[i] = f_ptr[i];
-    }
-}*/
 
 void  INThandler(int sig)
 {
      char  c;
      signal(sig, SIG_IGN);
-     printf("OUCH, did you hit Ctrl-C?\n"
-            "Do you really want to quit? [y/n] ");
+    
+     printf("\nQuit? [y/n] ");
      c = getchar();
      if (c == 'y' || c == 'Y')
-          exit(0);
+     {
+		 Work = 0;
+		 close(sockfd);
+		 free(ptr);
+		 exit(0);
+	 }
      else
      signal(SIGINT, INThandler);
 }
 
+int Compare(char* first,char *second)
+{
+	if(strlen(first) != strlen(second))
+	{
+		return 0;
+	}
+	for(int i = 0;i<strlen(first);++i)
+	{
+		if(first[i] != second[i])
+		{
+			return 0;
+		}
+	}
+	return 1;
+}
+
 int Req_Accept(int clientfd,int sockfd)
 {
-	signal(SIGINT, INThandler);
-	int req = 0;
+	int Status = 0;
 	//int idx = 0;
 	char m_buf[MAXDATA];
 	memset(m_buf,'\0',MAXDATA);
@@ -214,96 +229,99 @@ int Req_Accept(int clientfd,int sockfd)
 	{   
 		char buffer[MAXBUF];
 		memset(buffer,'\0',MAXBUF);
-		//unsigned int sz = 
-		recv(clientfd, buffer, MAXBUF, 0);
-		printf("\n%s\n",buffer);
-		if(buffer[0] == 'S'&&buffer[1]=='Y'&&buffer[2] == 'N')
+		if(recv(clientfd, buffer, MAXBUF, 0) <= 0)
 		{
-			req = 1;
-			printf("\n\nSYN\n\n");
+			printf("Error Reciving Data!!!\n");
+		}
+		//printf("\n%s\n",buffer);
+		if(Compare("SYN",buffer))
+		{
+			Status = 1;
+			printf("Starting to Receive Data!!!\n\n");
+			if(3 != send(clientfd,"SYN",3,0))
+			{
+				printf("Error Sending SYN!!!\n");
+			}
 			continue;
 		}
-		if(buffer[0] == 'F'&&buffer[1]=='I'&&buffer[2] == 'N')
+		if(Compare("FIN",buffer))
 		{
-			req = 2;
-			printf("\n\nFIN\n\n");
+			Status = 2;
+			printf("\nData Receiving Finished!!!\n");
 			//scanf("%s",buffer);
 		}
-		if(req == 1)
+		if(Status == 1)
 		{   
-			/*int k = 0;
-			while(k < MAXBUF && buffer[k] != '\0')
+			if(2 != send(clientfd,"OK",2,0))
 			{
-			m_buf[idx++] = buffer[k++];
+				printf("Error Sending OK!!!\n");
 			}
-			*/
-			printf("\nStrlen: %d\n",strlen(buffer));
-			if(strlen(buffer)==MAXBUF)
-			sha256_update(&hash,buffer,MAXBUF);
-			else if(strlen(buffer) > 0) //////////////////////////////////////////////ERRRROOORRRRR//////////////////////////////
-			sha256_update(&hash,buffer,strlen(buffer)-1);
+			if(strlen(buffer) == MAXBUF)
+			sha256_update(&hash,(void*)buffer,MAXBUF);
+			else if(strlen(buffer) > 0) 
+			sha256_update(&hash,(void*)buffer,strlen(buffer)-1);
 		}
-		if(req == 2)
+		if(Status == 2)
 		{  
 			printf("%s",m_buf);
 			sha256_final(&hash,h_buffer);	
-			send(clientfd,h_buffer, sizeof(h_buffer), 0);
-			printf("%s","\nMessage Hash: ");
+			if(32 != send(clientfd,h_buffer, sizeof(h_buffer), 0))
+			{
+				printf("Error Sending Hash!!!\n");
+			}
+			printf("%s","Sending Hash Message of Received Data:\n");
+			printf("%s","------------------------------------------------------------------\n ");
 			for(int i=0;i<32;++i)
 			{
 				printf("%x",h_buffer[i]);
 			}
-			printf("\n");
-			//req = 0;
-			close(clientfd);
-			close(sockfd);
-			//break;
-			//return 0;
-		}
-		if(req == 2)
-		{
-			req = 0;
-			close(clientfd);
-			close(sockfd);
+			printf("%s","\n------------------------------------------------------------------\n");
 			return 0;
-			//break;
 		}
-		printf("\n--------------------------------------------------------------\n");
+		printf("Data Received: %d Bites\n",(int)strlen(buffer));
 	}
+}
+
+void* SockInit(int *sockfd)
+{
+	struct sockaddr_in *self = malloc(sizeof(struct sockaddr_in));
+    int iSetOption = 1;
+    if ( (*sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0 )
+    {
+        perror("Socket");
+    }
+    setsockopt(*sockfd, SOL_SOCKET, SO_REUSEADDR, (char*)&iSetOption,
+                    sizeof(iSetOption));
+    bzero(self, sizeof(*self));
+    self->sin_family = AF_INET;
+    self->sin_port = htons(MY_PORT);
+    self->sin_addr.s_addr = INADDR_ANY;
+    return self;
 }
 
 int main()
 {   
-    int sockfd;
-    struct sockaddr_in self;
-    int iSetOption = 1;
-    if ( (sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0 )
-    {
-        perror("Socket");
-    }
-    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (char*)&iSetOption,
-                    sizeof(iSetOption));
-    bzero(&self, sizeof(self));
-    self.sin_family = AF_INET;
-    self.sin_port = htons(MY_PORT);
-    self.sin_addr.s_addr = INADDR_ANY;
-
-    if ( bind(sockfd, (struct sockaddr*)&self, sizeof(self)) != 0 )
+	signal(SIGINT,INThandler);
+    struct sockaddr_in *self = ptr = SockInit(&sockfd);
+    if ( bind(sockfd, (struct sockaddr*)self, sizeof(*self)) != 0 )
     {
         perror("socket--bind");
     }
-    while(1)
+    if ( listen(sockfd, 20) != 0 )
+	{
+		perror("socket--listen");
+	}
+    while(Work) // listening the 1337 port
     {
-		if ( listen(sockfd, 20) != 0 )
-		{
-			perror("socket--listen");
-		}
 		struct sockaddr_in client_addr;
 		int addrlen=sizeof(client_addr);
-		int clientfd = accept(sockfd,(struct sockaddr*)&client_addr, &addrlen);
+		
+		int clientfd = accept(sockfd,(struct sockaddr*)&client_addr,(socklen_t*)&addrlen);
+		
 		Req_Accept(clientfd,sockfd);
-		return 0;
+		close(clientfd);
     }
-    //
+    close(sockfd);
+    free(self);
     return 0;
 }
