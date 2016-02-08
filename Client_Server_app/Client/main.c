@@ -17,6 +17,8 @@
 
 struct sockaddr_in their_addr;
 
+
+
 int Compare(char* first,char *second)
 {
 	if(strlen(first) != strlen(second))
@@ -66,8 +68,57 @@ void buf_init(char *in_buf)
     fclose(fl);
 }
 
+struct R_Buffer
+{
+	char *Buff;
+	unsigned long int size;
+};
+
+void R_Buf_Init(struct R_Buffer* obj)
+{
+	obj->Buff = malloc(MAXDATA);
+	memset(obj->Buff,'\0',MAXDATA);
+	obj->size = 0;
+}
+
+void R_Buf_Free(struct R_Buffer* obj)
+{
+	free(obj->Buff);
+	obj->size = 0;
+	obj->Buff = 0;
+}
+void R_Buf_Push_Back(struct R_Buffer* obj,char *msg,unsigned long int len)
+{
+	for(int i=0;i<len;++i)
+	{
+		obj->Buff[obj->size++] = msg[i];
+	}
+}
+
+void R_Buf_Pop_Front(struct R_Buffer* obj,unsigned long int len)
+{
+	//printf("Delete Str: %s len: %d\n",obj->Buff,len);
+	char *temp = malloc(MAXDATA);
+	memset(temp,'\0',MAXDATA);
+	for(int i=0,j=len;j<MAXDATA;++i)
+	{
+		temp[i] = obj->Buff[j++]; 
+	}
+	obj->size -= len;
+	free(obj->Buff);
+	obj->Buff = temp;
+}
+int R_Buf_Empty(struct R_Buffer* obj)
+{
+	if(obj->size == 0)
+	return 1;
+	return 0;	
+}
+
 int main()
 {
+	struct R_Buffer Dev;
+	R_Buf_Init(&Dev);
     int sockfd, numbytes;
     init(&sockfd);
     char ACK[3];
@@ -76,18 +127,28 @@ int main()
 	buf_init(in_buf);
 	unsigned int index = 0;
     unsigned int size = strlen(in_buf);
+    int result = 0;
     if(3 != send(sockfd,"SYN",3,0))
     {
 		printf("Error Sending SYN!!!\n");
 	}
-    if(recv(sockfd, ACK, 3,0) <= 0)
+    while(Dev.size < 3)
     {
-		printf("Error Sending SYN!!!\n");
+		if((result = recv(sockfd, ACK, 3,0)) == -1)
+		{
+			printf("Error Sending SYN!!!\n");
+			return 1;
+		}
+		R_Buf_Push_Back(&Dev,ACK,result);
 	}
-    if(!Compare(ACK,"SYN"))
+    if(!Compare(Dev.Buff,"SYN"))
     {
 		printf("%s","Error Reciving ACK - SYN\n ");
 		return 1;
+	}
+	else
+	{
+		R_Buf_Pop_Front(&Dev,3);
 	}
     while(index != size)
 	{
@@ -99,19 +160,34 @@ int main()
 			++p;
 			++index;
 		}
-		if(MAXDATASIZE != send(sockfd,buf,MAXDATASIZE,0))
+		if(strlen(buf) != send(sockfd,buf,strlen(buf),0))
 		{
 			printf("%s","Error Sending Data\n ");
 		}
-		if(2 != recv(sockfd, ACK, 2,0) && Compare(ACK,"OK"))
+		while(Dev.size < 2)
+		{
+			if((result = recv(sockfd, ACK, 2,0)) == -1)
+			{
+				R_Buf_Free(&Dev);
+				return 1;
+			}
+			R_Buf_Push_Back(&Dev,ACK,result);
+		}
+		if(!Compare(Dev.Buff,"OK"))
 		{
 			printf("%s","Error Reciving ACK - OK\n ");
+			R_Buf_Free(&Dev);
 			return 1;
+		}
+		else
+		{
+			R_Buf_Pop_Front(&Dev,2);
 		}
 	}
     if(send(sockfd,"FIN",3,0) != 3)
     {
 		printf("%s","Error Sending FIN\n ");
+		R_Buf_Free(&Dev);
 		return 1;
 	}
     unsigned char h_buf[32];
@@ -125,6 +201,7 @@ int main()
         printf("%x",h_buf[i]);
     }
     printf("\n");
+    R_Buf_Free(&Dev);
     close(sockfd);
     return 0;
 }

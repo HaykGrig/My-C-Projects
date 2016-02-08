@@ -19,6 +19,7 @@
 
 volatile int Work = 1;
 int sockfd;
+struct R_Buffer Dev;
 void *ptr;
 
 
@@ -181,6 +182,7 @@ void sha256_final(SHA256_CTX *ctx, uchar hash[])
       hash[i+28] = (ctx->state[7] >> (24-i*8)) & 0x000000ff;
    }  
 }  
+void R_Buf_Free(struct R_Buffer*);
 
 void  INThandler(int sig)
 {
@@ -194,6 +196,7 @@ void  INThandler(int sig)
 		 Work = 0;
 		 close(sockfd);
 		 free(ptr);
+		 R_Buf_Free(&Dev);
 		 exit(0);
 	 }
      else
@@ -216,55 +219,118 @@ int Compare(char* first,char *second)
 	return 1;
 }
 
+struct R_Buffer
+{
+	char *Buff;
+	unsigned long int size;
+};
+
+void R_Buf_Init(struct R_Buffer* obj)
+{
+	obj->Buff = malloc(MAXDATA);
+	memset(obj->Buff,'\0',MAXDATA);
+	obj->size = 0;
+}
+
+void R_Buf_Free(struct R_Buffer* obj)
+{
+	free(obj->Buff);
+	obj->size = 0;
+	obj->Buff = 0;
+}
+void R_Buf_Push_Back(struct R_Buffer* obj,char *msg,unsigned long int len)
+{
+	for(int i=0;i<len;++i)
+	{
+		obj->Buff[obj->size++] = msg[i];
+	}
+}
+
+void R_Buf_Pop_Front(struct R_Buffer* obj,unsigned long int len)
+{
+	//printf("Delete Str: %s len: %d\n",obj->Buff,len);
+	char *temp = malloc(MAXDATA);
+	memset(temp,'\0',MAXDATA);
+	for(int i=0,j=len;j<MAXDATA;++i)
+	{
+		temp[i] = obj->Buff[j++]; 
+	}
+	obj->size -= len;
+	free(obj->Buff);
+	obj->Buff = temp;
+}
+int R_Buf_Empty(struct R_Buffer* obj)
+{
+	if(obj->size == 0)
+	return 1;
+	return 0;	
+}
+
 int Req_Accept(int clientfd,int sockfd)
 {
+
+	R_Buf_Init(&Dev);
 	int Status = 0;
 	//int idx = 0;
-	char m_buf[MAXDATA];
-	memset(m_buf,'\0',MAXDATA);
 	SHA256_CTX hash;
 	sha256_init(&hash);
 	uchar h_buffer[32];
 	while(1)
-	{   
+	{
+		int result = 0;
 		char buffer[MAXBUF];
 		memset(buffer,'\0',MAXBUF);
-		if(recv(clientfd, buffer, MAXBUF, 0) <= 0)
+		if((result = recv(clientfd, buffer, MAXBUF, 0)) == -1)
 		{
+			R_Buf_Free(&Dev);
 			printf("Error Reciving Data!!!\n");
+			return 1;
 		}
-		//printf("\n%s\n",buffer);
-		if(Compare("SYN",buffer))
+		//printf("Result: %d\n",result);
+		R_Buf_Push_Back(&Dev,buffer,result);
+		
+		//printf("\nBuffer: %s\n",buffer);
+		//printf("\nR_Buffer: %s\n",Dev.Buff);
+		if(Dev.size >= 3 && Compare("SYN",Dev.Buff))
 		{
+			//printf("SYN OK\n");
+			R_Buf_Pop_Front(&Dev,3);
 			Status = 1;
-			printf("Starting to Receive Data!!!\n\n");
+			printf("Starting to Receive Data!!!\n");
 			if(3 != send(clientfd,"SYN",3,0))
 			{
 				printf("Error Sending SYN!!!\n");
 			}
 			continue;
 		}
-		if(Compare("FIN",buffer))
+		if(Dev.size >=3 && Compare("FIN",buffer))
 		{
+			R_Buf_Pop_Front(&Dev,3);
 			Status = 2;
-			printf("\nData Receiving Finished!!!\n");
+			printf("Data Receiving Finished!!!\n");
 			//scanf("%s",buffer);
 		}
-		if(Status == 1)
+		if(!R_Buf_Empty(&Dev) && Status == 1)
 		{   
 			if(2 != send(clientfd,"OK",2,0))
 			{
 				printf("Error Sending OK!!!\n");
 			}
-			if(strlen(buffer) == MAXBUF)
-			sha256_update(&hash,(void*)buffer,MAXBUF);
-			else if(strlen(buffer) > 0) 
-			sha256_update(&hash,(void*)buffer,strlen(buffer)-1);
+			if(Dev.size == MAXBUF)
+			{
+				sha256_update(&hash,(void*)Dev.Buff,MAXBUF);
+				R_Buf_Pop_Front(&Dev,MAXBUF);
+			}
+			else
+			{
+				sha256_update(&hash,(void*)Dev.Buff,Dev.size-1);
+				R_Buf_Pop_Front(&Dev,Dev.size);
+			}
 		}
 		if(Status == 2)
 		{  
-			printf("%s",m_buf);
-			sha256_final(&hash,h_buffer);	
+			printf("%s",Dev.Buff);
+			sha256_final(&hash,h_buffer);
 			if(32 != send(clientfd,h_buffer, sizeof(h_buffer), 0))
 			{
 				printf("Error Sending Hash!!!\n");
@@ -276,10 +342,12 @@ int Req_Accept(int clientfd,int sockfd)
 				printf("%x",h_buffer[i]);
 			}
 			printf("%s","\n------------------------------------------------------------------\n");
+			R_Buf_Free(&Dev);
 			return 0;
 		}
 		printf("Data Received: %d Bites\n",(int)strlen(buffer));
 	}
+	R_Buf_Free(&Dev);
 }
 
 void* SockInit(int *sockfd)
