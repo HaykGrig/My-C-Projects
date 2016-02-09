@@ -9,11 +9,12 @@
 #include <sys/socket.h>
 #include <stdio.h>
 
-#define PORT  1337
+#define PORT  49158
 #define HOST "localhost"
 
 #define MAXDATASIZE 1000 
 #define MAXDATA 10000
+
 
 struct sockaddr_in their_addr;
 
@@ -68,26 +69,26 @@ void buf_init(char *in_buf)
     fclose(fl);
 }
 
-struct R_Buffer
+struct DynamycBuffer
 {
 	char *Buff;
 	unsigned long int size;
 };
 
-void R_Buf_Init(struct R_Buffer* obj)
+void DynamycBuffer_Init(struct DynamycBuffer* obj,unsigned int len)
 {
-	obj->Buff = malloc(MAXDATA);
-	memset(obj->Buff,'\0',MAXDATA);
+	obj->Buff = malloc(len);
+	memset(obj->Buff,'\0',len);
 	obj->size = 0;
 }
 
-void R_Buf_Free(struct R_Buffer* obj)
+void DynamycBuffer_Free(struct DynamycBuffer* obj)
 {
 	free(obj->Buff);
 	obj->size = 0;
 	obj->Buff = 0;
 }
-void R_Buf_Push_Back(struct R_Buffer* obj,char *msg,unsigned long int len)
+void DynamycBuffer_Push_Back(struct DynamycBuffer* obj,char *msg,unsigned long int len)
 {
 	for(int i=0;i<len;++i)
 	{
@@ -95,7 +96,7 @@ void R_Buf_Push_Back(struct R_Buffer* obj,char *msg,unsigned long int len)
 	}
 }
 
-void R_Buf_Pop_Front(struct R_Buffer* obj,unsigned long int len)
+void DynamycBuffer_Pop_Front(struct DynamycBuffer* obj,unsigned long int len)
 {
 	//printf("Delete Str: %s len: %d\n",obj->Buff,len);
 	char *temp = malloc(MAXDATA);
@@ -108,7 +109,7 @@ void R_Buf_Pop_Front(struct R_Buffer* obj,unsigned long int len)
 	free(obj->Buff);
 	obj->Buff = temp;
 }
-int R_Buf_Empty(struct R_Buffer* obj)
+int DynamycBuffer_Empty(struct DynamycBuffer* obj)
 {
 	if(obj->size == 0)
 	return 1;
@@ -117,8 +118,9 @@ int R_Buf_Empty(struct R_Buffer* obj)
 
 int main()
 {
-	struct R_Buffer Dev;
-	R_Buf_Init(&Dev);
+	//Init
+	struct DynamycBuffer Dev;
+	DynamycBuffer_Init(&Dev,MAXDATA);
     int sockfd, numbytes;
     init(&sockfd);
     char ACK[3];
@@ -127,19 +129,28 @@ int main()
 	buf_init(in_buf);
 	unsigned int index = 0;
     unsigned int size = strlen(in_buf);
+    
+    /*Hash Buffer*/
+    struct DynamycBuffer h_buf;
+	unsigned char Hash_Buffer[32];
+	/* */
     int result = 0;
+    //Init_End
+    
     if(3 != send(sockfd,"SYN",3,0))
     {
 		printf("Error Sending SYN!!!\n");
 	}
+	int expected_bytes = 3;
     while(Dev.size < 3)
     {
-		if((result = recv(sockfd, ACK, 3,0)) == -1)
+		if((result = recv(sockfd, ACK, expected_bytes-=result,0)) == -1)
 		{
+			DynamycBuffer_Free(&Dev);
 			printf("Error Sending SYN!!!\n");
 			return 1;
 		}
-		R_Buf_Push_Back(&Dev,ACK,result);
+		DynamycBuffer_Push_Back(&Dev,ACK,result);
 	}
     if(!Compare(Dev.Buff,"SYN"))
     {
@@ -148,60 +159,73 @@ int main()
 	}
 	else
 	{
-		R_Buf_Pop_Front(&Dev,3);
+		DynamycBuffer_Pop_Front(&Dev,3);
 	}
     while(index != size)
 	{
-		int p = 0;
+		int cur_index = 0;
 		memset(buf,'\0',MAXDATASIZE);
-		while(p != MAXDATASIZE && index != size)
+		while(cur_index != MAXDATASIZE && index != size)
 		{
-			buf[p] = in_buf[index];
-			++p;
+			buf[cur_index] = in_buf[index];
+			++cur_index;
 			++index;
 		}
 		if(strlen(buf) != send(sockfd,buf,strlen(buf),0))
 		{
 			printf("%s","Error Sending Data\n ");
 		}
+		expected_bytes = 2;
 		while(Dev.size < 2)
 		{
-			if((result = recv(sockfd, ACK, 2,0)) == -1)
+			result=0;
+			if((result = recv(sockfd, ACK,expected_bytes-=result,0)) == -1)
 			{
-				R_Buf_Free(&Dev);
+				DynamycBuffer_Free(&Dev);
 				return 1;
 			}
-			R_Buf_Push_Back(&Dev,ACK,result);
+			DynamycBuffer_Push_Back(&Dev,ACK,result);
 		}
 		if(!Compare(Dev.Buff,"OK"))
 		{
 			printf("%s","Error Reciving ACK - OK\n ");
-			R_Buf_Free(&Dev);
+			DynamycBuffer_Free(&Dev);
 			return 1;
 		}
 		else
 		{
-			R_Buf_Pop_Front(&Dev,2);
+			DynamycBuffer_Pop_Front(&Dev,2);
 		}
 	}
     if(send(sockfd,"FIN",3,0) != 3)
     {
 		printf("%s","Error Sending FIN\n ");
-		R_Buf_Free(&Dev);
+		DynamycBuffer_Free(&Dev);
 		return 1;
 	}
-    unsigned char h_buf[32];
-    if((numbytes = recv(sockfd,h_buf,32, 0)) == -1)
+	
+	DynamycBuffer_Init(&h_buf,32);
+	expected_bytes = 32;
+	
+    while(h_buf.size<32)
     {
-        perror("recv()");
-        exit(1);
-    }
-    for(int i=0;i<32;++i)
+		if((numbytes = recv(sockfd, Hash_Buffer, expected_bytes-=numbytes,0)) == -1)
+		{
+			DynamycBuffer_Free(&h_buf);
+			perror("recv()");
+			exit(1);
+		}
+		DynamycBuffer_Push_Back(&h_buf,(void*)Hash_Buffer,numbytes);
+	}
+	/*Print Hash Sum*/
+    for(int i=0;i<h_buf.size;++i)
     {
-        printf("%x",h_buf[i]);
+        printf("%x",(unsigned char)h_buf.Buff[i]);
     }
+    
     printf("\n");
-    R_Buf_Free(&Dev);
+    DynamycBuffer_Free(&h_buf);
+    DynamycBuffer_Free(&Dev);
     close(sockfd);
     return 0;
 }

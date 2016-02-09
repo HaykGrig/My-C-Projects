@@ -14,15 +14,17 @@
 #define true 1
 #define false 0
 
-#define MY_PORT 1337
+#define MY_PORT 49158
 #define MAXBUF 1000
 #define MAXDATA 10000
+#define SYNRESIVED 1
+#define FINRESIVED 2
 
 volatile int Work = 1;
 int sockfd;
-struct R_Buffer Dev;
+struct DynamycBuffer Dev;
 void *ptr;
-void R_Buf_Free(struct R_Buffer*);
+void DynamycBuffer_Free(struct DynamycBuffer*);
 
 void  INThandler(int sig)
 {
@@ -36,7 +38,7 @@ void  INThandler(int sig)
 		 Work = 0;
 		 close(sockfd);
 		 free(ptr);
-		 R_Buf_Free(&Dev);
+		 DynamycBuffer_Free(&Dev);
 		 exit(0);
 	 }
      else
@@ -59,26 +61,26 @@ int Compare(char* first,char *second)
 	return 1;
 }
 
-struct R_Buffer
+struct DynamycBuffer
 {
 	char *Buff;
 	unsigned long int size;
 };
 
-void R_Buf_Init(struct R_Buffer* obj)
+void DynamycBuffer_Init(struct DynamycBuffer* obj)
 {
 	obj->Buff = malloc(MAXDATA);
 	memset(obj->Buff,'\0',MAXDATA);
 	obj->size = 0;
 }
 
-void R_Buf_Free(struct R_Buffer* obj)
+void DynamycBuffer_Free(struct DynamycBuffer* obj)
 {
 	free(obj->Buff);
 	obj->size = 0;
 	obj->Buff = 0;
 }
-void R_Buf_Push_Back(struct R_Buffer* obj,char *msg,unsigned long int len)
+void DynamycBuffer_Push_Back(struct DynamycBuffer* obj,char *msg,unsigned long int len)
 {
 	for(int i=0;i<len;++i)
 	{
@@ -86,7 +88,7 @@ void R_Buf_Push_Back(struct R_Buffer* obj,char *msg,unsigned long int len)
 	}
 }
 
-void R_Buf_Pop_Front(struct R_Buffer* obj,unsigned long int len)
+void DynamycBuffer_Pop_Front(struct DynamycBuffer* obj,unsigned long int len)
 {
 	//printf("Delete Str: %s len: %d\n",obj->Buff,len);
 	char *temp = malloc(MAXDATA);
@@ -99,7 +101,7 @@ void R_Buf_Pop_Front(struct R_Buffer* obj,unsigned long int len)
 	free(obj->Buff);
 	obj->Buff = temp;
 }
-int R_Buf_Empty(struct R_Buffer* obj)
+int DynamycBuffer_Empty(struct DynamycBuffer* obj)
 {
 	if(obj->size == 0)
 	return 1;
@@ -109,13 +111,14 @@ int R_Buf_Empty(struct R_Buffer* obj)
 int Req_Accept(int clientfd,int sockfd)
 {
 
-	R_Buf_Init(&Dev);
+	DynamycBuffer_Init(&Dev);
 	int Status = 0;
 	//int idx = 0;
 	SHA256_CTX hash;
     SHA256_Init(&hash);
 
 	unsigned char h_buffer[32];
+	
 	while(1)
 	{
 		int result = 0;
@@ -123,20 +126,20 @@ int Req_Accept(int clientfd,int sockfd)
 		memset(buffer,'\0',MAXBUF);
 		if((result = recv(clientfd, buffer, MAXBUF, 0)) == -1)
 		{
-			R_Buf_Free(&Dev);
+			DynamycBuffer_Free(&Dev);
 			printf("Error Reciving Data!!!\n");
 			return 1;
 		}
 		//printf("Result: %d\n",result);
-		R_Buf_Push_Back(&Dev,buffer,result);
+		DynamycBuffer_Push_Back(&Dev,buffer,result);
 		
 		//printf("\nBuffer: %s\n",buffer);
-		//printf("\nR_Buffer: %s\n",Dev.Buff);
+		//printf("\nDynamycBuffer: %s\n",Dev.Buff);
 		if(Dev.size >= 3 && Compare("SYN",Dev.Buff))
 		{
 			//printf("SYN OK\n");
-			R_Buf_Pop_Front(&Dev,3);
-			Status = 1;
+			DynamycBuffer_Pop_Front(&Dev,3);
+			Status = SYNRESIVED;
 			printf("Starting to Receive Data!!!\n");
 			if(3 != send(clientfd,"SYN",3,0))
 			{
@@ -146,12 +149,12 @@ int Req_Accept(int clientfd,int sockfd)
 		}
 		if(Dev.size >=3 && Compare("FIN",buffer))
 		{
-			R_Buf_Pop_Front(&Dev,3);
-			Status = 2;
+			DynamycBuffer_Pop_Front(&Dev,3);
+			Status = FINRESIVED;
 			printf("Data Receiving Finished!!!\n");
 			//scanf("%s",buffer);
 		}
-		if(!R_Buf_Empty(&Dev) && Status == 1)
+		if(!DynamycBuffer_Empty(&Dev) && Status == SYNRESIVED)
 		{   
 			if(2 != send(clientfd,"OK",2,0))
 			{
@@ -160,15 +163,15 @@ int Req_Accept(int clientfd,int sockfd)
 			if(Dev.size == MAXBUF)
 			{
 				SHA256_Update(&hash,(void*)Dev.Buff,MAXBUF);
-				R_Buf_Pop_Front(&Dev,MAXBUF);
+				DynamycBuffer_Pop_Front(&Dev,MAXBUF);
 			}
 			else
 			{
 				SHA256_Update(&hash,(void*)Dev.Buff,Dev.size-1);
-				R_Buf_Pop_Front(&Dev,Dev.size);
+				DynamycBuffer_Pop_Front(&Dev,Dev.size);
 			}
 		}
-		if(Status == 2)
+		if(Status == FINRESIVED)
 		{  
 			printf("%s",Dev.Buff);
 			SHA256_Final(h_buffer,&hash);
@@ -183,12 +186,12 @@ int Req_Accept(int clientfd,int sockfd)
 				printf("%x",h_buffer[i]);
 			}
 			printf("%s","\n------------------------------------------------------------------\n");
-			R_Buf_Free(&Dev);
+			DynamycBuffer_Free(&Dev);
 			return 0;
 		}
 		printf("Data Received: %d Bites\n",(int)strlen(buffer));
 	}
-	R_Buf_Free(&Dev);
+	DynamycBuffer_Free(&Dev);
 }
 
 void* SockInit(int *sockfd)
@@ -226,7 +229,6 @@ int main()
 		int addrlen=sizeof(client_addr);
 		
 		int clientfd = accept(sockfd,(struct sockaddr*)&client_addr,(socklen_t*)&addrlen);
-		
 		Req_Accept(clientfd,sockfd);
 		close(clientfd);
     }
