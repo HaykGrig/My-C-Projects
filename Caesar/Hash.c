@@ -51,32 +51,36 @@ char Rotate_Left(char letter,int key)
 	return letter;
 }
 
-
-
-int main()
+unsigned int Get_Size(FILE *fl)
 {
-	unsigned char h_buffer[32];
-	SHA256_CTX hash;
-	SHA256_Init(&hash);
-	FILE *fl = fopen("Destination.txt","r");
 	fseek(fl, 0L, SEEK_END);
-	unsigned int size = ftell(fl)+1;
+	unsigned int size = ftell(fl);
 	fseek(fl, 0L, SEEK_SET);
-	char *source = malloc(size);
-	fgets(source,size,fl);
+	return size;
+}
+
+char *source_init(FILE *fl,unsigned int *size)
+{
+	*size = Get_Size(fl)+1;
+	char *source = malloc(*size);
+	fgets(source,*size,fl);
+	return source;
+}
+
+void Decrypt(char *source,char *buf)
+{
 	printf("Decrypted Message: ");
-	fclose(fl);
-	fl = fopen("Text+Hash.txt","w");
-	SHA256_Update(&hash,source,size);
-	SHA256_Final(h_buffer,&hash);
-	fputs("Message: ",fl);
 	int i=0;
-	char buf[strlen(source)];
 	for(;i<strlen(source);++i)
 	{
 		printf("%c",(buf[i] = Rotate_Left(source[i],shift)));
 	}
 	buf[i] = '\0';
+}
+
+void Write_In_File(unsigned char* h_buffer,char *source,char *buf,FILE *fl)
+{
+	fputs("Message: ",fl);
 	fputs(buf,fl);
 	fputs("\nCaesar: ",fl);
 	fputs(source,fl);
@@ -88,6 +92,24 @@ int main()
 		fprintf(fl,"%x",h_buffer[i]);
 	}
 	printf("\n");
+}
+
+int main()
+{
+	unsigned char h_buffer[32];
+	SHA256_CTX hash;
+	SHA256_Init(&hash);
+	unsigned int size;
+	FILE *fl = fopen("Destination.txt","r");
+	char *source=source_init(fl,&size);
+	fclose(fl);
+	fl = fopen("Text+Hash.txt","w");
+	SHA256_Update(&hash,source,size);
+	SHA256_Final(h_buffer,&hash);
+	char buf[strlen(source)];
+	Decrypt(source,buf);
+	Write_In_File(h_buffer,source,buf,fl);
+	
 	fclose(fl);
 	free(source);
 }

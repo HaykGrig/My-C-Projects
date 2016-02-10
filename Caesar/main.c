@@ -49,12 +49,20 @@ char Rotate_Right(char letter,int key)
 	return letter;
 }
 
-int main()
+unsigned int Get_Size(FILE *fl)
 {
-	FILE *fl = fopen("Source.txt","r");
 	fseek(fl, 0L, SEEK_END);
 	unsigned int size = ftell(fl);
 	fseek(fl, 0L, SEEK_SET);
+	return size;
+}
+
+int main()
+{
+	FILE *fl = fopen("Source.txt","r");
+	
+	unsigned int size = Get_Size(fl)+1;
+	
 	char *source = malloc(size);
 	char *destination = malloc(size);
 	fgets(source,size,fl);
