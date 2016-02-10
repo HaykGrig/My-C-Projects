@@ -1,4 +1,0 @@
-all:
-	gcc -c DynamycBuffer.o DynamycBuffer/DynamycBuffer.c 
-	gcc -c Client.o Client/main.c
-	gcc -o Client main.o DynamycBuffer.o
