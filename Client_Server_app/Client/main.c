@@ -8,6 +8,7 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <stdio.h>
+#include "../DynamycBuffer/DynamycBuffer.h"
 
 #define PORT  49158
 #define HOST "localhost"
@@ -61,6 +62,7 @@ void init(int *sockfd)
         exit(1);
     }
 }
+
 void buf_init(char *in_buf)
 {        
 	memset(in_buf,'\0',MAXDATA);
@@ -69,59 +71,28 @@ void buf_init(char *in_buf)
     fclose(fl);
 }
 
-struct DynamycBuffer
+int Recv_ACK(int expected_bytes,char *ACK,int sockfd,struct DynamycBuffer *Dev)
 {
-	char *Buff;
-	unsigned long int size;
-};
-
-void DynamycBuffer_Init(struct DynamycBuffer* obj,unsigned int len)
-{
-	obj->Buff = malloc(len);
-	memset(obj->Buff,'\0',len);
-	obj->size = 0;
-}
-
-void DynamycBuffer_Free(struct DynamycBuffer* obj)
-{
-	free(obj->Buff);
-	obj->size = 0;
-	obj->Buff = 0;
-}
-void DynamycBuffer_Push_Back(struct DynamycBuffer* obj,char *msg,unsigned long int len)
-{
-	for(int i=0;i<len;++i)
-	{
-		obj->Buff[obj->size++] = msg[i];
+	int result = 0;
+	int exp_bytes = expected_bytes;
+    while(Dev->size < expected_bytes)
+    {
+		if((result = recv(sockfd, ACK, exp_bytes-=result,0)) == -1)
+		{
+			printf("Error Sending SYN!!!\n");
+			return 1;
+		}
+		DynamycBuffer_Push_Back(Dev,ACK,result);
 	}
-}
-
-void DynamycBuffer_Pop_Front(struct DynamycBuffer* obj,unsigned long int len)
-{
-	//printf("Delete Str: %s len: %d\n",obj->Buff,len);
-	char *temp = malloc(MAXDATA);
-	memset(temp,'\0',MAXDATA);
-	for(int i=0,j=len;j<MAXDATA;++i)
-	{
-		temp[i] = obj->Buff[j++]; 
-	}
-	obj->size -= len;
-	free(obj->Buff);
-	obj->Buff = temp;
-}
-int DynamycBuffer_Empty(struct DynamycBuffer* obj)
-{
-	if(obj->size == 0)
-	return 1;
-	return 0;	
+	return 0;
 }
 
 int main()
 {
 	//Init
 	struct DynamycBuffer Dev;
-	DynamycBuffer_Init(&Dev,MAXDATA);
-    int sockfd, numbytes;
+	DynamycBuffer_Init(&Dev,MAXDATASIZE);
+    int sockfd;
     init(&sockfd);
     char ACK[3];
 	char in_buf[MAXDATA];
@@ -134,24 +105,18 @@ int main()
     struct DynamycBuffer h_buf;
 	unsigned char Hash_Buffer[32];
 	/* */
-    int result = 0;
-    //Init_End
     
     if(3 != send(sockfd,"SYN",3,0))
     {
 		printf("Error Sending SYN!!!\n");
 	}
-	int expected_bytes = 3;
-    while(Dev.size < 3)
-    {
-		if((result = recv(sockfd, ACK, expected_bytes-=result,0)) == -1)
-		{
-			DynamycBuffer_Free(&Dev);
-			printf("Error Sending SYN!!!\n");
-			return 1;
-		}
-		DynamycBuffer_Push_Back(&Dev,ACK,result);
+	
+	if(Recv_ACK(3,ACK,sockfd,&Dev))
+	{
+		DynamycBuffer_Free(&Dev);
+		return 1;
 	}
+	
     if(!Compare(Dev.Buff,"SYN"))
     {
 		printf("%s","Error Reciving ACK - SYN\n ");
@@ -175,16 +140,10 @@ int main()
 		{
 			printf("%s","Error Sending Data\n ");
 		}
-		expected_bytes = 2;
-		while(Dev.size < 2)
+		if(Recv_ACK(2,ACK,sockfd,&Dev))
 		{
-			result=0;
-			if((result = recv(sockfd, ACK,expected_bytes-=result,0)) == -1)
-			{
-				DynamycBuffer_Free(&Dev);
-				return 1;
-			}
-			DynamycBuffer_Push_Back(&Dev,ACK,result);
+			DynamycBuffer_Free(&Dev);
+			return 1;
 		}
 		if(!Compare(Dev.Buff,"OK"))
 		{
@@ -203,26 +162,17 @@ int main()
 		DynamycBuffer_Free(&Dev);
 		return 1;
 	}
-	
 	DynamycBuffer_Init(&h_buf,32);
-	expected_bytes = 32;
-	
-    while(h_buf.size<32)
-    {
-		if((numbytes = recv(sockfd, Hash_Buffer, expected_bytes-=numbytes,0)) == -1)
-		{
-			DynamycBuffer_Free(&h_buf);
-			perror("recv()");
-			exit(1);
-		}
-		DynamycBuffer_Push_Back(&h_buf,(void*)Hash_Buffer,numbytes);
+	if(Recv_ACK(32,(void*)Hash_Buffer,sockfd,&h_buf))
+	{
+		DynamycBuffer_Free(&h_buf);
+		return 1;
 	}
 	/*Print Hash Sum*/
     for(int i=0;i<h_buf.size;++i)
     {
         printf("%x",(unsigned char)h_buf.Buff[i]);
     }
-    
     printf("\n");
     DynamycBuffer_Free(&h_buf);
     DynamycBuffer_Free(&Dev);

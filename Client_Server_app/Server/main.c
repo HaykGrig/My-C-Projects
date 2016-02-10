@@ -10,6 +10,7 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <openssl/sha.h>
+#include "../DynamycBuffer/DynamycBuffer.h"
 
 #define true 1
 #define false 0
@@ -24,7 +25,6 @@ volatile int Work = 1;
 int sockfd;
 struct DynamycBuffer Dev;
 void *ptr;
-void DynamycBuffer_Free(struct DynamycBuffer*);
 
 void  INThandler(int sig)
 {
@@ -61,57 +61,10 @@ int Compare(char* first,char *second)
 	return 1;
 }
 
-struct DynamycBuffer
-{
-	char *Buff;
-	unsigned long int size;
-};
-
-void DynamycBuffer_Init(struct DynamycBuffer* obj)
-{
-	obj->Buff = malloc(MAXDATA);
-	memset(obj->Buff,'\0',MAXDATA);
-	obj->size = 0;
-}
-
-void DynamycBuffer_Free(struct DynamycBuffer* obj)
-{
-	free(obj->Buff);
-	obj->size = 0;
-	obj->Buff = 0;
-}
-void DynamycBuffer_Push_Back(struct DynamycBuffer* obj,char *msg,unsigned long int len)
-{
-	for(int i=0;i<len;++i)
-	{
-		obj->Buff[obj->size++] = msg[i];
-	}
-}
-
-void DynamycBuffer_Pop_Front(struct DynamycBuffer* obj,unsigned long int len)
-{
-	//printf("Delete Str: %s len: %d\n",obj->Buff,len);
-	char *temp = malloc(MAXDATA);
-	memset(temp,'\0',MAXDATA);
-	for(int i=0,j=len;j<MAXDATA;++i)
-	{
-		temp[i] = obj->Buff[j++]; 
-	}
-	obj->size -= len;
-	free(obj->Buff);
-	obj->Buff = temp;
-}
-int DynamycBuffer_Empty(struct DynamycBuffer* obj)
-{
-	if(obj->size == 0)
-	return 1;
-	return 0;	
-}
-
 int Req_Accept(int clientfd,int sockfd)
 {
 
-	DynamycBuffer_Init(&Dev);
+	DynamycBuffer_Init(&Dev,MAXBUF);
 	int Status = 0;
 	//int idx = 0;
 	SHA256_CTX hash;
@@ -130,14 +83,9 @@ int Req_Accept(int clientfd,int sockfd)
 			printf("Error Reciving Data!!!\n");
 			return 1;
 		}
-		//printf("Result: %d\n",result);
 		DynamycBuffer_Push_Back(&Dev,buffer,result);
-		
-		//printf("\nBuffer: %s\n",buffer);
-		//printf("\nDynamycBuffer: %s\n",Dev.Buff);
 		if(Dev.size >= 3 && Compare("SYN",Dev.Buff))
 		{
-			//printf("SYN OK\n");
 			DynamycBuffer_Pop_Front(&Dev,3);
 			Status = SYNRESIVED;
 			printf("Starting to Receive Data!!!\n");
@@ -152,7 +100,6 @@ int Req_Accept(int clientfd,int sockfd)
 			DynamycBuffer_Pop_Front(&Dev,3);
 			Status = FINRESIVED;
 			printf("Data Receiving Finished!!!\n");
-			//scanf("%s",buffer);
 		}
 		if(!DynamycBuffer_Empty(&Dev) && Status == SYNRESIVED)
 		{   
