@@ -47,7 +47,6 @@ char Rotate_Left(char letter,int key)
 			}
 		}
 	}
-	
 	return letter;
 }
 

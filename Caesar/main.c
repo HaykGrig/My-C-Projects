@@ -60,9 +60,7 @@ unsigned int Get_Size(FILE *fl)
 int main()
 {
 	FILE *fl = fopen("Source.txt","r");
-	
 	unsigned int size = Get_Size(fl)+1;
-	
 	char *source = malloc(size);
 	char *destination = malloc(size);
 	fgets(source,size,fl);
