@@ -49,7 +49,6 @@ char Rotate_Right(char letter,int key)
 	return letter;
 }
 
-
 int main()
 {
 	FILE *fl = fopen("Source.txt","r");
