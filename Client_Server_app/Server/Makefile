@@ -1,3 +1,4 @@
 all:
-	gcc main.c -lcrypto
+	gcc -c main.c
+	gcc -o Server main.o ../DynamycBuffer/DynamycBuffer.o -lcrypto
 
