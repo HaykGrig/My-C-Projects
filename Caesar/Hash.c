@@ -64,7 +64,7 @@ int main()
 	fseek(fl, 0L, SEEK_SET);
 	char *source = malloc(size);
 	fgets(source,size,fl);
-	printf("Message: ");
+	printf("Decrypted Message: ");
 	fclose(fl);
 	fl = fopen("Text+Hash.txt","w");
 	SHA256_Update(&hash,source,size);
@@ -78,10 +78,10 @@ int main()
 	}
 	buf[i] = '\0';
 	fputs(buf,fl);
-	printf("\n");
 	fputs("\nCaesar: ",fl);
 	fputs(source,fl);
 	fputs("\nHash: ",fl);
+	printf("\nHash: ");
 	for(int i=0;i<32;++i)
 	{
 		printf("%X",h_buffer[i]);
