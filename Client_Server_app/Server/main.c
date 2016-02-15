@@ -10,6 +10,7 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <openssl/sha.h>
+#include <pthread.h>
 #include "../DynamycBuffer/DynamycBuffer.h"
 
 #define true 1
@@ -22,10 +23,6 @@
 #define FINRESIVED 2
 
 volatile int Work = 1;
-int sockfd;
-struct DynamycBuffer Dev;
-void *ptr;
-
 void  INThandler(int sig)
 {
      char  c;
@@ -36,10 +33,6 @@ void  INThandler(int sig)
      if (c == 'y' || c == 'Y')
      {
 		 Work = 0;
-		 close(sockfd);
-		 free(ptr);
-		 DynamycBuffer_Free(&Dev);
-		 exit(0);
 	 }
      else
      signal(SIGINT, INThandler);
@@ -61,9 +54,9 @@ int Compare(char* first,char *second)
 	return 1;
 }
 
-int Req_Accept(int clientfd,int sockfd)
+void* Req_Accept(void* clientfd)
 {
-
+	struct DynamycBuffer Dev;
 	DynamycBuffer_Init(&Dev,MAXBUF);
 	int Status = 0;
 	//int idx = 0;
@@ -77,11 +70,15 @@ int Req_Accept(int clientfd,int sockfd)
 		int result = 0;
 		char buffer[MAXBUF];
 		memset(buffer,'\0',MAXBUF);
-		if((result = recv(clientfd, buffer, MAXBUF, 0)) == -1)
+		if((result = recv(*(int*)clientfd, buffer, MAXBUF, 0)) == -1)
 		{
-			DynamycBuffer_Free(&Dev);
+			
 			printf("Error Reciving Data!!!\n");
-			return 1;
+			DynamycBuffer_Free(&Dev);
+			close(*(int*)clientfd);
+			free(clientfd);
+			pthread_exit(0);
+			return 0;
 		}
 		DynamycBuffer_Push_Back(&Dev,buffer,result);
 		if(Dev.size >= 3 && Compare("SYN",Dev.Buff))
@@ -89,9 +86,14 @@ int Req_Accept(int clientfd,int sockfd)
 			DynamycBuffer_Pop_Front(&Dev,3);
 			Status = SYNRESIVED;
 			printf("Starting to Receive Data!!!\n");
-			if(3 != send(clientfd,"SYN",3,0))
+			if(3 != send(*(int*)clientfd,"SYN",3,0))
 			{
 				printf("Error Sending SYN!!!\n");
+				DynamycBuffer_Free(&Dev);
+				close(*(int*)clientfd);
+				free(clientfd);
+				pthread_exit(0);
+				return 0;
 			}
 			continue;
 		}
@@ -103,9 +105,14 @@ int Req_Accept(int clientfd,int sockfd)
 		}
 		if(!DynamycBuffer_Empty(&Dev) && Status == SYNRESIVED)
 		{   
-			if(2 != send(clientfd,"OK",2,0))
+			if(2 != send(*(int*)clientfd,"OK",2,0))
 			{
 				printf("Error Sending OK!!!\n");
+				DynamycBuffer_Free(&Dev);
+				close(*(int*)clientfd);
+				free(clientfd);
+				pthread_exit(0);
+				return 0;
 			}
 			if(Dev.size == MAXBUF)
 			{
@@ -122,9 +129,14 @@ int Req_Accept(int clientfd,int sockfd)
 		{  
 			printf("%s",Dev.Buff);
 			SHA256_Final(h_buffer,&hash);
-			if(32 != send(clientfd,h_buffer, sizeof(h_buffer), 0))
+			if(32 != send(*(int*)clientfd,h_buffer, sizeof(h_buffer), 0))
 			{
 				printf("Error Sending Hash!!!\n");
+				DynamycBuffer_Free(&Dev);
+				close(*(int*)clientfd);
+				free(clientfd);
+				pthread_exit(0);
+				return 0;
 			}
 			printf("%s","Sending Hash Message of Received Data:\n");
 			printf("%s","------------------------------------------------------------------\n ");
@@ -133,23 +145,31 @@ int Req_Accept(int clientfd,int sockfd)
 				printf("%x",h_buffer[i]);
 			}
 			printf("%s","\n------------------------------------------------------------------\n");
+			close(*(int*)clientfd);
 			DynamycBuffer_Free(&Dev);
+			free(clientfd);
+			pthread_exit(0);
 			return 0;
 		}
 		printf("Data Received: %d Bites\n",(int)strlen(buffer));
 	}
+	close(*(int*)clientfd);
 	DynamycBuffer_Free(&Dev);
+	free(clientfd);
+	pthread_exit(0);
+	return 0;
 }
 
-void* SockInit(int *sockfd)
+
+void* SockInit(void *sockfd)
 {
 	struct sockaddr_in *self = malloc(sizeof(struct sockaddr_in));
     int iSetOption = 1;
-    if ( (*sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0 )
+    if ( (*(int*)sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0 )
     {
         perror("Socket");
     }
-    setsockopt(*sockfd, SOL_SOCKET, SO_REUSEADDR, (char*)&iSetOption,
+    setsockopt(*(int*)sockfd, SOL_SOCKET, SO_REUSEADDR, (char*)&iSetOption,
                     sizeof(iSetOption));
     bzero(self, sizeof(*self));
     self->sin_family = AF_INET;
@@ -161,7 +181,9 @@ void* SockInit(int *sockfd)
 int main()
 {   
 	signal(SIGINT,INThandler);
-    struct sockaddr_in *self = ptr = SockInit(&sockfd);
+	pthread_t thread_id;
+	int sockfd;
+    struct sockaddr_in *self = SockInit(&sockfd);
     if ( bind(sockfd, (struct sockaddr*)self, sizeof(*self)) != 0 )
     {
         perror("socket--bind");
@@ -170,14 +192,24 @@ int main()
 	{
 		perror("socket--listen");
 	}
-    while(Work) // listening the 1337 port
+	struct sockaddr_in client_addr;
+	int addrlen=sizeof(client_addr);
+    while(Work)
     {
-		struct sockaddr_in client_addr;
-		int addrlen=sizeof(client_addr);
-		
 		int clientfd = accept(sockfd,(struct sockaddr*)&client_addr,(socklen_t*)&addrlen);
-		Req_Accept(clientfd,sockfd);
-		close(clientfd);
+		int *temp = malloc(sizeof(int));
+		*temp=clientfd;
+		if(pthread_create( &thread_id , NULL , Req_Accept, (void*)temp) < 0)
+        {
+            perror("Could not create thread");
+            return 1;
+        }
+        if(pthread_detach(thread_id))
+        {
+			perror("Could not Detach thread");
+            return 1;
+		}
+		
     }
     close(sockfd);
     free(self);

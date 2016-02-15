@@ -9,7 +9,6 @@
 #include <sys/socket.h>
 #include <stdio.h>
 #include "../DynamycBuffer/DynamycBuffer.h"
-
 #define PORT  49158
 #define HOST "localhost"
 
@@ -176,6 +175,9 @@ int main()
     printf("\n");
     DynamycBuffer_Free(&h_buf);
     DynamycBuffer_Free(&Dev);
+    
+    printf("Port number %d\n", ntohs(their_addr.sin_port));
+    
     close(sockfd);
     return 0;
 }
