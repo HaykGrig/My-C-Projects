@@ -24,7 +24,8 @@ void DynamycBuffer_Free(struct DynamycBuffer* obj)
 }
 void DynamycBuffer_Push_Back(struct DynamycBuffer* obj,char *msg,unsigned long int len)
 {
-	for(int i=0;i<len;++i)
+	int i;
+	for(i=0;i<len;++i)
 	{
 		obj->Buff[obj->size++] = msg[i];
 	}
@@ -35,7 +36,8 @@ void DynamycBuffer_Pop_Front(struct DynamycBuffer* obj,unsigned long int len)
 	//printf("Delete Str: %s len: %d\n",obj->Buff,len);
 	char *temp = malloc(obj->Max_Size);
 	memset(temp,'\0',obj->Max_Size);
-	for(int i=0,j=len;j<obj->Max_Size;++i)
+	int i,j;
+	for(i=0,j=len;j<obj->Max_Size;++i)
 	{
 		temp[i] = obj->Buff[j++]; 
 	}

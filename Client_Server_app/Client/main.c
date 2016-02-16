@@ -26,7 +26,8 @@ int Compare(char* first,char *second)
 	{
 		return 0;
 	}
-	for(int i = 0;i<strlen(first);++i)
+	int i;
+	for(i = 0;i<strlen(first);++i)
 	{
 		if(first[i] != second[i])
 		{
@@ -168,7 +169,8 @@ int main()
 		return 1;
 	}
 	/*Print Hash Sum*/
-    for(int i=0;i<h_buf.size;++i)
+	int i;
+    for(i=0;i<h_buf.size;++i)
     {
         printf("%x",(unsigned char)h_buf.Buff[i]);
     }

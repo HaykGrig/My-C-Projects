@@ -1,0 +1,5 @@
+Buffer = Object('DynamycBuffer/DynamycBuffer.c')
+Client = Object('Client/main.c')
+Program(Client + Buffer)
+Server = Object('Server/main.c')
+Program(Server + Buffer,LIBS=['-lpthread','-lcrypto'])
