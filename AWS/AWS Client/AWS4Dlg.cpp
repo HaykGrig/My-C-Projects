@@ -122,13 +122,11 @@ BOOL CAWS4Dlg::OnInitDialog()
 		}
 	}
 
-	// Set the icon for this dialog.  The framework does this automatically
-	//  when the application's main window is not a dialog
+
 	SetIcon(m_hIcon, TRUE);			// Set big icon
 	SetIcon(m_hIcon, FALSE);		// Set small icon
 
 	m_StopButton.EnableWindow(0);
-	// TODO: Add extra initialization here
 	IDexists=false;
 	IPrequest=false;
 	Client_ID=L"";
@@ -160,9 +158,7 @@ void CAWS4Dlg::OnSysCommand(UINT nID, LPARAM lParam)
 	}
 }
 
-// If you add a minimize button to your dialog, you will need the code below
-//  to draw the icon.  For MFC applications using the document/view model,
-//  this is automatically done for you by the framework.
+
 
 void CAWS4Dlg::OnPaint()
 {
@@ -358,15 +354,15 @@ bool CAWS4Dlg::GetActiveProcessName(CString& resStr)
 
 bool CAWS4Dlg::GetFileProperties(const CString pszProcessPath, CString& resStr)
 {
-    PLONG infoBuffer;  // буфер, куда будем читать информацию
-    DWORD infoSize;    // и его размер
+    PLONG infoBuffer; 
+    DWORD infoSize;    
  
-    struct LANGANDCODEPAGE { // структура для получения кодовых страниц по языкам трансляции ресурсов файла
+    struct LANGANDCODEPAGE { 
         WORD wLanguage;
         WORD wCodePage;
     } *pLangCodePage;
  
-    // имена параметров, значения которых будем запрашивать
+
     const TCHAR *paramNames[] = {
             _T("FileDescription"),
 //            _T("CompanyName"),
@@ -381,47 +377,40 @@ bool CAWS4Dlg::GetFileProperties(const CString pszProcessPath, CString& resStr)
 //            _T("Author")
     };
  
-    TCHAR paramNameBuf[256]; // здесь формируем имя параметра
-    TCHAR *paramValue;       // здесь будет указатель на значение параметра, который нам вернет функция VerQueryValue
-    UINT paramSz;            // здесь будет длина значения параметра, который нам вернет функция VerQueryValue
+    TCHAR paramNameBuf[256]; 
+    TCHAR *paramValue;     
+    UINT paramSz;           
  
-    // получаем размер информации о версии файла
+
     infoSize = GetFileVersionInfoSize(pszProcessPath, NULL);
     if ( infoSize > 0 )
     {
-        // выделяем память
+
         infoBuffer = (PLONG) malloc(infoSize);
- 
-        // получаем информацию
         if ( 0 != GetFileVersionInfo(pszProcessPath, NULL, infoSize, infoBuffer) )
         {
-            // информация находится блоками в виде "\StringFileInfo\кодовая_страница\имя_параметра
-            // т.к. мы не знаем заранее сколько и какие локализации (кодовая_страница) ресурсов имеются в файле,
-            // то будем перебирать их все
- 
+          
             UINT cpSz;
-            // получаем список кодовых страниц
-            if ( VerQueryValue(infoBuffer,                      // наш буфер, содержащий информацию
-                               _T("\\VarFileInfo\\Translation"),// запрашиваем имеющиеся трансляции
-                               (LPVOID*) &pLangCodePage,        // сюда функция вернет нам указатель на начало интересующих нас данных
-                               &cpSz) )                         // а сюда - размер этих данных
+            
+            if ( VerQueryValue(infoBuffer,                      
+                               _T("\\VarFileInfo\\Translation"),
+                               (LPVOID*) &pLangCodePage,        
+                               &cpSz) )                         
             {
-                // перебираем все кодовые страницы
+                
                 for (int cpIdx = 0; cpIdx < (int)(cpSz/sizeof(struct LANGANDCODEPAGE)); cpIdx++ )
                 {
-                    // перебираем имена параметров
+
                     for (int paramIdx = 0; paramIdx < sizeof(paramNames)/sizeof(char*); paramIdx++)
                     {
-                        // формируем имя параметра ( \StringFileInfo\кодовая_страница\имя_параметра )
+                        
                         _stprintf(paramNameBuf, _T("\\StringFileInfo\\%04x%04x\\%s"),
-                                        pLangCodePage[cpIdx].wLanguage,  // ну, или можно сделать фильтр для
-                                        pLangCodePage[cpIdx].wCodePage,  // какой-то отдельной кодовой страницы
+                                        pLangCodePage[cpIdx].wLanguage, 
+                                        pLangCodePage[cpIdx].wCodePage, 
                                         paramNames[paramIdx]);
- 
-                        // получаем значение параметра
+
                         if ( VerQueryValue(infoBuffer, paramNameBuf, (LPVOID*)&paramValue, &paramSz))
 						{
-                            // и выводим его на экран
 							//resStr += "\t";
 							resStr += paramNames[paramIdx];
 							resStr += ":\\t";

@@ -1,3 +1,13 @@
+// THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
+// ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+// THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A
+// PARTICULAR PURPOSE.
+//
+// Copyright (C) 1998 - 2000  Microsoft Corporation.  All Rights Reserved.
+//
+// Module:
+//      iocpserver.h
+//
 
 #ifndef IOCPSERVER_H
 #define IOCPSERVER_H
@@ -14,7 +24,9 @@ typedef enum _IO_OPERATION {
     ClientIoWrite
 } IO_OPERATION, *PIO_OPERATION;
 
-
+//
+// data to be associated for every I/O operation on a socket
+//
 typedef struct _PER_IO_CONTEXT {
     WSAOVERLAPPED               Overlapped;
     char                        Buffer[MAX_BUFF_SIZE];
@@ -27,6 +39,15 @@ typedef struct _PER_IO_CONTEXT {
     struct _PER_IO_CONTEXT      *pIOContextForward;
 } PER_IO_CONTEXT, *PPER_IO_CONTEXT;
 
+//
+// For AcceptEx, the IOCP key is the PER_SOCKET_CONTEXT for the listening socket,
+// so we need to another field SocketAccept in PER_IO_CONTEXT. When the outstanding
+// AcceptEx completes, this field is our connection socket handle.
+//
+
+//
+// data to be associated with every socket added to the IOCP
+//
 typedef struct _PER_SOCKET_CONTEXT {
     SOCKET                      Socket;
 
@@ -40,6 +61,11 @@ typedef struct _PER_SOCKET_CONTEXT {
     struct _PER_SOCKET_CONTEXT  *pCtxtForward;
 } PER_SOCKET_CONTEXT, *PPER_SOCKET_CONTEXT;
 
+//
+// bAddToList is FALSE for listening socket, and TRUE for connection sockets.
+// As we maintain the context for listening socket in a global structure, we
+// don't need to add it to the list.
+//
 
 
 #endif
