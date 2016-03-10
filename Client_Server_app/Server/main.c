@@ -19,8 +19,8 @@
 #define MY_PORT 49158
 #define MAXBUF 1000
 #define MAXDATA 10000
-#define SYNRESIVED 1
-#define FINRESIVED 2
+#define SYNRECEIVED 1
+#define FINRECEIVED 2
 
 volatile int Work = 1;
 void  INThandler(int sig)
@@ -84,7 +84,7 @@ void* Req_Accept(void* clientfd)
 		if(Dev.size >= 3 && Compare("SYN",Dev.Buff))
 		{
 			DynamycBuffer_Pop_Front(&Dev,3);
-			Status = SYNRESIVED;
+			Status = SYNRECEIVED;
 			printf("Starting to Receive Data!!!\n");
 			if(3 != send(*(int*)clientfd,"SYN",3,0))
 			{
@@ -100,10 +100,10 @@ void* Req_Accept(void* clientfd)
 		if(Dev.size >=3 && Compare("FIN",buffer))
 		{
 			DynamycBuffer_Pop_Front(&Dev,3);
-			Status = FINRESIVED;
+			Status = FINRECEIVED;
 			printf("Data Receiving Finished!!!\n");
 		}
-		if(!DynamycBuffer_Empty(&Dev) && Status == SYNRESIVED)
+		if(!DynamycBuffer_Empty(&Dev) && Status == SYNRECEIVED)
 		{   
 			if(2 != send(*(int*)clientfd,"OK",2,0))
 			{
@@ -125,7 +125,7 @@ void* Req_Accept(void* clientfd)
 				DynamycBuffer_Pop_Front(&Dev,Dev.size);
 			}
 		}
-		if(Status == FINRESIVED)
+		if(Status == FINRECEIVED)
 		{  
 			printf("%s",Dev.Buff);
 			SHA256_Final(h_buffer,&hash);
