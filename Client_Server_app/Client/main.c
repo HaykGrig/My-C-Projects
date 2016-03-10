@@ -8,7 +8,7 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <stdio.h>
-#include "../DynamycBuffer/DynamycBuffer.h"
+#include "../DynamicBuffer/DynamicBuffer.h"
 #define PORT  49158
 #define HOST "localhost"
 
@@ -71,7 +71,7 @@ void buf_init(char *in_buf)
     fclose(fl);
 }
 
-int Recv_ACK(int expected_bytes,char *ACK,int sockfd,struct DynamycBuffer *Dev)
+int Recv_ACK(int expected_bytes,char *ACK,int sockfd,struct DynamicBuffer *Dev)
 {
 	int result = 0;
 	int exp_bytes = expected_bytes;
@@ -82,7 +82,7 @@ int Recv_ACK(int expected_bytes,char *ACK,int sockfd,struct DynamycBuffer *Dev)
 			printf("Error Sending SYN!!!\n");
 			return 1;
 		}
-		DynamycBuffer_Push_Back(Dev,ACK,result);
+		DynamicBuffer_Push_Back(Dev,ACK,result);
 	}
 	return 0;
 }
@@ -90,8 +90,8 @@ int Recv_ACK(int expected_bytes,char *ACK,int sockfd,struct DynamycBuffer *Dev)
 int main()
 {
 	//Init
-	struct DynamycBuffer Dev;
-	DynamycBuffer_Init(&Dev,MAXDATASIZE);
+	struct DynamicBuffer Dev;
+	DynamicBuffer_Init(&Dev,MAXDATASIZE);
     int sockfd;
     init(&sockfd);
     char ACK[3];
@@ -102,7 +102,7 @@ int main()
     unsigned int size = strlen(in_buf);
     
     /*Hash Buffer*/
-    struct DynamycBuffer h_buf;
+    struct DynamicBuffer h_buf;
 	unsigned char Hash_Buffer[32];
 	/* */
     
@@ -113,7 +113,7 @@ int main()
 	
 	if(Recv_ACK(3,ACK,sockfd,&Dev))
 	{
-		DynamycBuffer_Free(&Dev);
+		DynamicBuffer_Free(&Dev);
 		return 1;
 	}
 	
@@ -124,7 +124,7 @@ int main()
 	}
 	else
 	{
-		DynamycBuffer_Pop_Front(&Dev,3);
+		DynamicBuffer_Pop_Front(&Dev,3);
 	}
     while(index != size)
 	{
@@ -142,30 +142,30 @@ int main()
 		}
 		if(Recv_ACK(2,ACK,sockfd,&Dev))
 		{
-			DynamycBuffer_Free(&Dev);
+			DynamicBuffer_Free(&Dev);
 			return 1;
 		}
 		if(!Compare(Dev.Buff,"OK"))
 		{
 			printf("%s","Error Reciving ACK - OK\n ");
-			DynamycBuffer_Free(&Dev);
+			DynamicBuffer_Free(&Dev);
 			return 1;
 		}
 		else
 		{
-			DynamycBuffer_Pop_Front(&Dev,2);
+			DynamicBuffer_Pop_Front(&Dev,2);
 		}
 	}
     if(send(sockfd,"FIN",3,0) != 3)
     {
 		printf("%s","Error Sending FIN\n ");
-		DynamycBuffer_Free(&Dev);
+		DynamicBuffer_Free(&Dev);
 		return 1;
 	}
-	DynamycBuffer_Init(&h_buf,32);
+	DynamicBuffer_Init(&h_buf,32);
 	if(Recv_ACK(32,(void*)Hash_Buffer,sockfd,&h_buf))
 	{
-		DynamycBuffer_Free(&h_buf);
+		DynamicBuffer_Free(&h_buf);
 		return 1;
 	}
 	/*Print Hash Sum*/
@@ -175,8 +175,8 @@ int main()
         printf("%x",(unsigned char)h_buf.Buff[i]);
     }
     printf("\n");
-    DynamycBuffer_Free(&h_buf);
-    DynamycBuffer_Free(&Dev);
+    DynamicBuffer_Free(&h_buf);
+    DynamicBuffer_Free(&Dev);
     
     printf("Port number %d\n", ntohs(their_addr.sin_port));
     

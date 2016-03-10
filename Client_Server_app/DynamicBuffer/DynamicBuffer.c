@@ -2,13 +2,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-struct DynamycBuffer
+struct DynamicBuffer
 {
 	char *Buff;
 	unsigned long int Max_Size;
 	unsigned long int size;
 };
-void DynamycBuffer_Init(struct DynamycBuffer* obj,unsigned int len)
+void DynamicBuffer_Init(struct DynamicBuffer* obj,unsigned int len)
 {
 	obj->Max_Size = len;
 	obj->Buff = malloc(len);
@@ -16,13 +16,13 @@ void DynamycBuffer_Init(struct DynamycBuffer* obj,unsigned int len)
 	obj->size = 0;
 }
 
-void DynamycBuffer_Free(struct DynamycBuffer* obj)
+void DynamicBuffer_Free(struct DynamicBuffer* obj)
 {
 	free(obj->Buff);
 	obj->size = 0;
 	obj->Buff = 0;
 }
-void DynamycBuffer_Push_Back(struct DynamycBuffer* obj,char *msg,unsigned long int len)
+void DynamicBuffer_Push_Back(struct DynamicBuffer* obj,char *msg,unsigned long int len)
 {
 	int i;
 	for(i=0;i<len;++i)
@@ -31,7 +31,7 @@ void DynamycBuffer_Push_Back(struct DynamycBuffer* obj,char *msg,unsigned long i
 	}
 }
 
-void DynamycBuffer_Pop_Front(struct DynamycBuffer* obj,unsigned long int len)
+void DynamicBuffer_Pop_Front(struct DynamicBuffer* obj,unsigned long int len)
 {
 	//printf("Delete Str: %s len: %d\n",obj->Buff,len);
 	char *temp = malloc(obj->Max_Size);
@@ -45,7 +45,7 @@ void DynamycBuffer_Pop_Front(struct DynamycBuffer* obj,unsigned long int len)
 	free(obj->Buff);
 	obj->Buff = temp;
 }
-int DynamycBuffer_Empty(struct DynamycBuffer* obj)
+int DynamicBuffer_Empty(struct DynamicBuffer* obj)
 {
 	if(obj->size == 0)
 	return 1;

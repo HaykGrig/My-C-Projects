@@ -1,4 +1,4 @@
-Buffer = Object('DynamycBuffer/DynamycBuffer.c')
+Buffer = Object('DynamicBuffer/DynamicBuffer.c')
 Client = Object('Client/main.c')
 Program(Client + Buffer)
 Server = Object('Server/main.c')

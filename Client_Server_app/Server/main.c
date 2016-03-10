@@ -11,7 +11,7 @@
 #include <stdlib.h>
 #include <openssl/sha.h>
 #include <pthread.h>
-#include "../DynamycBuffer/DynamycBuffer.h"
+#include "../DynamicBuffer/DynamicBuffer.h"
 
 #define true 1
 #define false 0
@@ -56,8 +56,8 @@ int Compare(char* first,char *second)
 
 void* Req_Accept(void* clientfd)
 {
-	struct DynamycBuffer Dev;
-	DynamycBuffer_Init(&Dev,MAXBUF);
+	struct DynamicBuffer Dev;
+	DynamicBuffer_Init(&Dev,MAXBUF);
 	int Status = 0;
 	//int idx = 0;
 	SHA256_CTX hash;
@@ -74,22 +74,22 @@ void* Req_Accept(void* clientfd)
 		{
 			
 			printf("Error Reciving Data!!!\n");
-			DynamycBuffer_Free(&Dev);
+			DynamicBuffer_Free(&Dev);
 			close(*(int*)clientfd);
 			free(clientfd);
 			pthread_exit(0);
 			return 0;
 		}
-		DynamycBuffer_Push_Back(&Dev,buffer,result);
+		DynamicBuffer_Push_Back(&Dev,buffer,result);
 		if(Dev.size >= 3 && Compare("SYN",Dev.Buff))
 		{
-			DynamycBuffer_Pop_Front(&Dev,3);
+			DynamicBuffer_Pop_Front(&Dev,3);
 			Status = SYNRECEIVED;
 			printf("Starting to Receive Data!!!\n");
 			if(3 != send(*(int*)clientfd,"SYN",3,0))
 			{
 				printf("Error Sending SYN!!!\n");
-				DynamycBuffer_Free(&Dev);
+				DynamicBuffer_Free(&Dev);
 				close(*(int*)clientfd);
 				free(clientfd);
 				pthread_exit(0);
@@ -99,16 +99,16 @@ void* Req_Accept(void* clientfd)
 		}
 		if(Dev.size >=3 && Compare("FIN",buffer))
 		{
-			DynamycBuffer_Pop_Front(&Dev,3);
+			DynamicBuffer_Pop_Front(&Dev,3);
 			Status = FINRECEIVED;
 			printf("Data Receiving Finished!!!\n");
 		}
-		if(!DynamycBuffer_Empty(&Dev) && Status == SYNRECEIVED)
+		if(!DynamicBuffer_Empty(&Dev) && Status == SYNRECEIVED)
 		{   
 			if(2 != send(*(int*)clientfd,"OK",2,0))
 			{
 				printf("Error Sending OK!!!\n");
-				DynamycBuffer_Free(&Dev);
+				DynamicBuffer_Free(&Dev);
 				close(*(int*)clientfd);
 				free(clientfd);
 				pthread_exit(0);
@@ -117,12 +117,12 @@ void* Req_Accept(void* clientfd)
 			if(Dev.size == MAXBUF)
 			{
 				SHA256_Update(&hash,(void*)Dev.Buff,MAXBUF);
-				DynamycBuffer_Pop_Front(&Dev,MAXBUF);
+				DynamicBuffer_Pop_Front(&Dev,MAXBUF);
 			}
 			else
 			{
 				SHA256_Update(&hash,(void*)Dev.Buff,Dev.size-1);
-				DynamycBuffer_Pop_Front(&Dev,Dev.size);
+				DynamicBuffer_Pop_Front(&Dev,Dev.size);
 			}
 		}
 		if(Status == FINRECEIVED)
@@ -132,7 +132,7 @@ void* Req_Accept(void* clientfd)
 			if(32 != send(*(int*)clientfd,h_buffer, sizeof(h_buffer), 0))
 			{
 				printf("Error Sending Hash!!!\n");
-				DynamycBuffer_Free(&Dev);
+				DynamicBuffer_Free(&Dev);
 				close(*(int*)clientfd);
 				free(clientfd);
 				pthread_exit(0);
@@ -146,7 +146,7 @@ void* Req_Accept(void* clientfd)
 			}
 			printf("%s","\n------------------------------------------------------------------\n");
 			close(*(int*)clientfd);
-			DynamycBuffer_Free(&Dev);
+			DynamicBuffer_Free(&Dev);
 			free(clientfd);
 			pthread_exit(0);
 			return 0;
@@ -154,7 +154,7 @@ void* Req_Accept(void* clientfd)
 		printf("Data Received: %d Bites\n",(int)strlen(buffer));
 	}
 	close(*(int*)clientfd);
-	DynamycBuffer_Free(&Dev);
+	DynamicBuffer_Free(&Dev);
 	free(clientfd);
 	pthread_exit(0);
 	return 0;
